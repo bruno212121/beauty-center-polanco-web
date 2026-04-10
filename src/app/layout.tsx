@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Cormorant_Garamond, Jost } from "next/font/google";
-import Header from "@/components/Header";
-import Footer from "@/components/Footer";
+import { AuthProvider } from "@/context/AuthContext";
 import "./globals.css";
 
 const cormorant = Cormorant_Garamond({
@@ -27,8 +26,7 @@ export const metadata: Metadata = {
   keywords: ["beauty center", "polanco", "spa", "belleza", "cdmx", "cuidado personal"],
   openGraph: {
     title: "Beauty Center Polanco",
-    description:
-      "Centro de belleza y bienestar en Polanco, Ciudad de México.",
+    description: "Centro de belleza y bienestar en Polanco, Ciudad de México.",
     locale: "es_MX",
     type: "website",
   },
@@ -36,18 +34,14 @@ export const metadata: Metadata = {
 
 export default function RootLayout({
   children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+}: Readonly<{ children: React.ReactNode }>) {
   return (
     <html
       lang="es"
       className={`${cormorant.variable} ${jost.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-[var(--color-background)] text-[var(--color-foreground)]">
-        <Header />
-        <main className="flex-1">{children}</main>
-        <Footer />
+      <body className="min-h-full bg-[var(--color-background)] text-[var(--color-foreground)]">
+        <AuthProvider>{children}</AuthProvider>
       </body>
     </html>
   );
