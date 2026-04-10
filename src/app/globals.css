@@ -12,11 +12,16 @@
   --color-muted:        #8C8C8C;
 
   /* Semánticos */
-  --color-background:   var(--color-cream);
-  --color-foreground:   var(--color-charcoal);
-  --color-primary:      var(--color-rose);
-  --color-primary-dark: var(--color-rose-dark);
-  --color-accent:       var(--color-gold);
+  --color-background:       var(--color-cream);
+  --color-foreground:       var(--color-charcoal);
+  --color-primary:          var(--color-rose);
+  --color-primary-dark:     var(--color-rose-dark);
+  --color-primary-foreground: #ffffff;
+  --color-accent:           #fdf2f3;
+  --color-accent-foreground: var(--color-charcoal);
+  --color-card:             #ffffff;
+  --color-border:           #e5e7eb;
+  --color-muted-foreground: #6b7280;
 
   /* Tipografía */
   --font-heading: var(--font-cormorant);
@@ -24,13 +29,11 @@
 
   /* Sidebar */
   --color-sidebar:                  #ffffff;
-  --color-sidebar-border:           rgba(0, 0, 0, 0.07);
+  --color-sidebar-border:           #e5e7eb;
   --color-sidebar-foreground:       #2C2C2C;
   --color-sidebar-foreground-muted: #6b7280;
-  --color-sidebar-accent:           rgba(201, 132, 138, 0.1);
+  --color-sidebar-accent:           #fdf2f3;
   --color-sidebar-primary:          #9E5F65;
-  --color-primary-foreground:       #ffffff;
-  --color-muted-foreground:         #6b7280;
 }
 
 /* Base */
@@ -48,4 +51,16 @@ h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-heading), serif;
   font-weight: 400;
   letter-spacing: 0.02em;
+}
+
+/* El dashboard usa Jost en todo, sin letra de serif */
+.dashboard h1,
+.dashboard h2,
+.dashboard h3,
+.dashboard h4,
+.dashboard h5,
+.dashboard h6 {
+  font-family: var(--font-body), sans-serif;
+  font-weight: 600;
+  letter-spacing: normal;
 }

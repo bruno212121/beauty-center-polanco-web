@@ -74,8 +74,8 @@ export default function Sidebar() {
                 className={cn(
                   "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
                   isActive
-                    ? "bg-[var(--color-sidebar-accent)] text-[var(--color-sidebar-primary)]"
-                    : "text-[var(--color-sidebar-foreground-muted)] hover:bg-[var(--color-sidebar-accent)] hover:text-[var(--color-sidebar-foreground)]",
+                    ? "bg-sidebar-accent text-sidebar-primary"
+                    : "text-sidebar-foreground-muted hover:bg-sidebar-accent hover:text-sidebar-foreground",
                 )}
                 style={{ fontFamily: "var(--font-body)" }}
               >
@@ -89,8 +89,8 @@ export default function Sidebar() {
         {/* Usuario + logout */}
         <div className="border-t p-4 border-[var(--color-sidebar-border)]">
           <div className="flex items-center gap-3 rounded-lg px-3 py-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--color-sidebar-accent)]">
-              <UserCircle className="h-5 w-5 text-[var(--color-sidebar-foreground)]" />
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-sidebar-accent">
+              <UserCircle className="h-5 w-5 text-sidebar-foreground" />
             </div>
             <div className="flex-1 min-w-0">
               <p
@@ -108,7 +108,7 @@ export default function Sidebar() {
             </div>
             <button
               onClick={logout}
-              className="rounded-lg p-2 text-[var(--color-muted-foreground)] hover:bg-[var(--color-sidebar-accent)] hover:text-[var(--color-sidebar-foreground)] transition-colors"
+              className="rounded-lg p-2 text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
               aria-label="Cerrar sesión"
             >
               <LogOut className="h-4 w-4" />

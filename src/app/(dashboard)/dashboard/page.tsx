@@ -1,101 +1,178 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import { Calendar, Users, DollarSign, TrendingUp } from "lucide-react";
+import { StatCard } from "@/components/stat-card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/context/AuthContext";
 import RoleGuard from "@/components/RoleGuard";
+import { api } from "@/lib/api";
+import type { Appointment, AppointmentStatus } from "@/types/appointment";
 
-interface StatCard {
-  label: string;
-  value: string;
-  hint: string;
+/* ─── Helpers ─── */
+
+function isToday(dateStr: string) {
+  const d = new Date(dateStr);
+  const now = new Date();
+  return (
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate()
+  );
 }
 
-const STATS: StatCard[] = [
-  { label: "Citas hoy",       value: "—", hint: "Pendiente de conectar" },
-  { label: "Clientes activos",value: "—", hint: "Pendiente de conectar" },
-  { label: "Ventas del mes",  value: "—", hint: "Pendiente de conectar" },
-  { label: "Estilistas",      value: "—", hint: "Pendiente de conectar" },
-];
+const STATUS_LABELS: Record<AppointmentStatus, string> = {
+  scheduled:   "Agendada",
+  in_progress: "En curso",
+  completed:   "Completada",
+  cancelled:   "Cancelada",
+};
+
+const STATUS_BADGE: Record<AppointmentStatus, string> = {
+  scheduled:   "bg-emerald-100 text-emerald-700 hover:bg-emerald-100",
+  in_progress: "bg-primary/15 text-primary hover:bg-primary/15",
+  completed:   "bg-gray-100 text-gray-500 hover:bg-gray-100",
+  cancelled:   "bg-red-50 text-red-400 hover:bg-red-50",
+};
+
+/* ─── Page ─── */
 
 export default function DashboardPage() {
   const { user } = useAuth();
 
+  const [citasHoy, setCitasHoy] = useState<Appointment[]>([]);
+  const [pendientes, setPendientes] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        // Traemos scheduled + in_progress y filtramos al día de hoy
+        const [scheduled, inProgress] = await Promise.all([
+          api.get<Appointment[]>("/appointments/?appointment_status=scheduled"),
+          api.get<Appointment[]>("/appointments/?appointment_status=in_progress"),
+        ]);
+
+        const today = [...scheduled, ...inProgress].filter((a) =>
+          isToday(a.start_time),
+        );
+
+        // Ordenar por hora
+        today.sort(
+          (a, b) =>
+            new Date(a.start_time).getTime() - new Date(b.start_time).getTime(),
+        );
+
+        setCitasHoy(today);
+        setPendientes(scheduled.filter((a) => isToday(a.start_time)).length);
+      } catch {
+        // Si el backend no está disponible, dejamos lista vacía
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    fetchData();
+  }, []);
+
+  const citasCount = isLoading ? "—" : String(citasHoy.length);
+  const pendientesText = isLoading ? "Cargando..." : `${pendientes} agendada${pendientes !== 1 ? "s" : ""}`;
+
   return (
-    <div className="flex flex-col gap-8">
-      {/* Saludo */}
+    <div className="space-y-8">
+      {/* Header */}
       <div>
-        <p
-          className="text-xs tracking-[0.3em] uppercase text-[var(--color-gold)]"
-          style={{ fontFamily: "var(--font-body)" }}
-        >
-          Panel de administración
+        <h1 className="text-2xl font-semibold text-foreground">Dashboard</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {user?.name ? `Bienvenida, ${user.name}.` : "Resumen de tu salón de belleza"}
         </p>
-        <h1
-          className="text-4xl text-[var(--color-charcoal)] mt-1"
-          style={{ fontFamily: "var(--font-heading)" }}
-        >
-          Bienvenida{user?.name ? `, ${user.name}` : ""}.
-        </h1>
       </div>
 
-      {/* Stats — solo admin y receptionist */}
+      {/* Stats */}
       <RoleGuard allowed={["admin", "receptionist"]}>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {STATS.map((stat) => (
-            <div
-              key={stat.label}
-              className="bg-white border border-[var(--color-rose-light)]/40 px-6 py-5 flex flex-col gap-2"
-            >
-              <p
-                className="text-xs tracking-widest uppercase text-[var(--color-muted)]"
-                style={{ fontFamily: "var(--font-body)" }}
-              >
-                {stat.label}
-              </p>
-              <p
-                className="text-3xl text-[var(--color-charcoal)]"
-                style={{ fontFamily: "var(--font-heading)" }}
-              >
-                {stat.value}
-              </p>
-              <p
-                className="text-[11px] text-[var(--color-muted)]"
-                style={{ fontFamily: "var(--font-body)" }}
-              >
-                {stat.hint}
-              </p>
-            </div>
-          ))}
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <StatCard
+            title="Citas Hoy"
+            value={citasCount}
+            subtitle={pendientesText}
+            icon={Calendar}
+          />
+          <StatCard
+            title="Clientes Activos"
+            value="—"
+            subtitle="Próximamente"
+            icon={Users}
+          />
+          <StatCard
+            title="Ventas del Día"
+            value="—"
+            subtitle="Próximamente"
+            icon={DollarSign}
+          />
+          <StatCard
+            title="Ingresos del Mes"
+            value="—"
+            subtitle="Próximamente"
+            icon={TrendingUp}
+          />
         </div>
       </RoleGuard>
 
-      {/* Accesos rápidos */}
-      <div>
-        <h2
-          className="text-xs tracking-[0.3em] uppercase text-[var(--color-muted)] mb-4"
-          style={{ fontFamily: "var(--font-body)" }}
-        >
-          Accesos rápidos
-        </h2>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-          {[
-            { label: "Nueva cita",     href: "/dashboard/citas/nueva",    roles: ["admin", "receptionist", "stylist"] },
-            { label: "Nuevo cliente",  href: "/dashboard/clientes/nuevo", roles: ["admin", "receptionist"] },
-            { label: "Nueva venta",    href: "/dashboard/ventas/nueva",   roles: ["admin", "receptionist"] },
-            { label: "Ver comisiones", href: "/dashboard/comisiones",     roles: ["admin"] },
-          ]
-            .filter((item) => user && (item.roles as string[]).includes(user.role))
-            .map((item) => (
-              <a
-                key={item.href}
-                href={item.href}
-                className="border border-[var(--color-rose-light)]/50 bg-white px-4 py-4 text-sm tracking-widest uppercase text-[var(--color-charcoal)] hover:border-[var(--color-rose)] hover:text-[var(--color-rose)] transition-colors duration-200"
-                style={{ fontFamily: "var(--font-body)" }}
-              >
-                {item.label}
-              </a>
-            ))}
-        </div>
-      </div>
+      {/* Citas de hoy */}
+      <Card className="border-border/50">
+        <CardHeader className="pb-4">
+          <CardTitle className="text-lg">Citas de Hoy</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <p className="text-sm text-muted-foreground py-4 text-center">
+              Cargando citas...
+            </p>
+          ) : citasHoy.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-4 text-center">
+              No hay citas programadas para hoy.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {citasHoy.map((cita) => {
+                const hora = new Date(cita.start_time).toLocaleTimeString("es-MX", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  hour12: false,
+                });
+
+                return (
+                  <div
+                    key={cita.id}
+                    className="flex items-center justify-between rounded-lg border border-border/50 bg-card p-4 transition-colors hover:bg-accent/50"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-xs font-medium text-primary shrink-0">
+                        {hora}
+                      </div>
+                      <div>
+                        <p className="font-medium text-foreground text-sm">
+                          {cita.client.full_name}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          {cita.service.name} · {cita.service.duration_minutes} min
+                        </p>
+                      </div>
+                    </div>
+                    <Badge
+                      variant="secondary"
+                      className={STATUS_BADGE[cita.status]}
+                    >
+                      {STATUS_LABELS[cita.status]}
+                    </Badge>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
