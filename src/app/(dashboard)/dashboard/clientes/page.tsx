@@ -1,143 +1,333 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
+import { Plus, Search, Phone, Mail, MoreHorizontal } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Card, CardContent } from "@/components/ui/card";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { api, ApiError } from "@/lib/api";
-import type { Client } from "@/types/client";
+import type { Client, ClientCreate } from "@/types/client";
+
+/* ─── Helpers ─── */
+
+function getInitials(name: string) {
+  return name
+    .split(" ")
+    .slice(0, 2)
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase();
+}
+
+function formatDate(dateStr: string) {
+  return new Date(dateStr).toLocaleDateString("es-MX", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+/* ─── Formulario ─── */
+
+interface ClientForm {
+  full_name: string;
+  email: string;
+  phone: string;
+  notes: string;
+}
+
+const EMPTY_FORM: ClientForm = {
+  full_name: "",
+  email: "",
+  phone: "",
+  notes: "",
+};
+
+/* ─── Page ─── */
 
 export default function ClientesPage() {
+  const router = useRouter();
   const [clients, setClients] = useState<Client[]>([]);
   const [search, setSearch] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const controller = new AbortController();
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState<ClientForm>(EMPTY_FORM);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-    async function fetchClients() {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const params = new URLSearchParams({ skip: "0", limit: "100" });
-        if (search.trim()) params.set("search", search.trim());
-        const data = await api.get<Client[]>(`/clients/?${params}`);
-        setClients(data);
-      } catch (err) {
-        if (err instanceof ApiError) setError(err.message);
-        else setError("Error al cargar clientes.");
-      } finally {
-        setIsLoading(false);
-      }
+  /* ── Cargar clientes ── */
+  const fetchClients = useCallback(async (query = "") => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const params = new URLSearchParams({ skip: "0", limit: "200" });
+      if (query.trim()) params.set("search", query.trim());
+      const data = await api.get<Client[]>(`/clients/?${params}`);
+      setClients(data);
+    } catch (err) {
+      if (err instanceof ApiError) setError(err.message);
+      else setError("Error al cargar clientes.");
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchClients();
+  }, [fetchClients]);
+
+  /* ── Búsqueda con debounce ── */
+  useEffect(() => {
+    const timeout = setTimeout(() => fetchClients(search), search ? 300 : 0);
+    return () => clearTimeout(timeout);
+  }, [search, fetchClients]);
+
+  /* ── Handlers ── */
+  function handleField(key: keyof ClientForm, value: string) {
+    setForm((f) => ({ ...f, [key]: value }));
+  }
+
+  function handleDialogChange(v: boolean) {
+    setOpen(v);
+    if (!v) {
+      setForm(EMPTY_FORM);
+      setFormError(null);
+    }
+  }
+
+  async function handleSubmit() {
+    if (!form.full_name.trim()) {
+      setFormError("El nombre del cliente es obligatorio.");
+      return;
     }
 
-    const timeout = setTimeout(fetchClients, search ? 300 : 0);
-    return () => {
-      clearTimeout(timeout);
-      controller.abort();
-    };
-  }, [search]);
+    setIsSubmitting(true);
+    setFormError(null);
 
+    try {
+      const body: ClientCreate = {
+        full_name: form.full_name.trim(),
+        ...(form.email.trim() && { email: form.email.trim() }),
+        ...(form.phone.trim() && { phone: form.phone.trim() }),
+        ...(form.notes.trim() && { notes: form.notes.trim() }),
+      };
+      await api.post("/clients/", body);
+      handleDialogChange(false);
+      fetchClients(search);
+    } catch (err) {
+      if (err instanceof ApiError) setFormError(err.message);
+      else setFormError("Error al guardar el cliente.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  /* ── Render ── */
   return (
-    <div className="flex flex-col gap-6">
-      {/* Encabezado */}
-      <div className="flex items-end justify-between gap-4 flex-wrap">
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
-          <p
-            className="text-xs tracking-[0.3em] uppercase text-[var(--color-gold)]"
-            style={{ fontFamily: "var(--font-body)" }}
-          >
-            Dashboard
+          <h1 className="text-2xl font-semibold text-foreground">Clientes</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Administra la información de tus clientes
           </p>
-          <h1
-            className="text-4xl text-[var(--color-charcoal)] mt-0.5"
-            style={{ fontFamily: "var(--font-heading)" }}
-          >
-            Clientes
-          </h1>
         </div>
 
-        {/* Buscador */}
-        <input
-          type="search"
-          placeholder="Buscar por nombre..."
+        <Dialog open={open} onOpenChange={handleDialogChange}>
+          <DialogTrigger asChild>
+            <Button>
+              <Plus className="h-4 w-4" />
+              Nuevo Cliente
+            </Button>
+          </DialogTrigger>
+
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Nuevo Cliente</DialogTitle>
+            </DialogHeader>
+
+            <div className="grid gap-4">
+              {formError && (
+                <p className="text-sm text-red-600 bg-red-50 border border-red-200 px-3 py-2 rounded-lg">
+                  {formError}
+                </p>
+              )}
+
+              <div className="grid gap-2">
+                <Label>
+                  Nombre completo <span className="text-red-400">*</span>
+                </Label>
+                <Input
+                  placeholder="Nombre del cliente"
+                  value={form.full_name}
+                  onChange={(e) => handleField("full_name", e.target.value)}
+                />
+              </div>
+
+              <div className="grid gap-2">
+                <Label>Email</Label>
+                <Input
+                  type="email"
+                  placeholder="email@ejemplo.com"
+                  value={form.email}
+                  onChange={(e) => handleField("email", e.target.value)}
+                />
+              </div>
+
+              <div className="grid gap-2">
+                <Label>Teléfono</Label>
+                <Input
+                  placeholder="55 1234 5678"
+                  value={form.phone}
+                  onChange={(e) => handleField("phone", e.target.value)}
+                />
+              </div>
+
+              <div className="grid gap-2">
+                <Label>Notas</Label>
+                <Textarea
+                  placeholder="Preferencias, alergias, notas..."
+                  value={form.notes}
+                  onChange={(e) => handleField("notes", e.target.value)}
+                />
+              </div>
+
+              <Button
+                className="mt-1"
+                onClick={handleSubmit}
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? "Guardando..." : "Guardar Cliente"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      {/* Buscador */}
+      <div className="relative max-w-sm">
+        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          placeholder="Buscar clientes..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="border border-[var(--color-rose-light)] bg-white px-4 py-2 text-sm text-[var(--color-charcoal)] outline-none focus:border-[var(--color-rose)] transition-colors placeholder:text-[var(--color-muted)]/60 w-64"
-          style={{ fontFamily: "var(--font-body)" }}
+          className="pl-9"
         />
       </div>
 
-      {/* Estado de carga */}
+      {/* Estados */}
       {isLoading && (
-        <p
-          className="text-sm text-[var(--color-muted)] tracking-widest"
-          style={{ fontFamily: "var(--font-body)" }}
-        >
-          Cargando...
+        <p className="text-sm text-muted-foreground">Cargando clientes...</p>
+      )}
+      {error && (
+        <p className="text-sm text-red-600 bg-red-50 border border-red-200 px-4 py-3 rounded-lg">
+          {error}
         </p>
       )}
 
-      {/* Error */}
-      {error && (
-        <div
-          className="text-sm text-red-600 bg-red-50 border border-red-200 px-4 py-3"
-          style={{ fontFamily: "var(--font-body)" }}
-        >
-          {error}
-        </div>
-      )}
-
-      {/* Tabla */}
+      {/* Grid */}
       {!isLoading && !error && (
-        <div className="bg-white border border-[var(--color-rose-light)]/40 overflow-x-auto">
+        <>
           {clients.length === 0 ? (
-            <p
-              className="text-sm text-[var(--color-muted)] px-6 py-10 text-center"
-              style={{ fontFamily: "var(--font-body)" }}
-            >
+            <p className="text-sm text-muted-foreground text-center py-10">
               No se encontraron clientes.
             </p>
           ) : (
-            <table className="w-full text-sm" style={{ fontFamily: "var(--font-body)" }}>
-              <thead>
-                <tr className="border-b border-[var(--color-rose-light)]/40">
-                  {["Nombre", "Teléfono", "Email", "Registro"].map((col) => (
-                    <th
-                      key={col}
-                      className="text-left text-xs tracking-widest uppercase text-[var(--color-muted)] px-5 py-3 font-normal"
-                    >
-                      {col}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {clients.map((c) => (
-                  <tr
-                    key={c.id}
-                    className="border-b border-[var(--color-rose-light)]/20 hover:bg-[var(--color-cream)] transition-colors"
-                  >
-                    <td className="px-5 py-3 text-[var(--color-charcoal)] font-medium">
-                      {c.full_name}
-                    </td>
-                    <td className="px-5 py-3 text-[var(--color-muted)]">
-                      {c.phone ?? "—"}
-                    </td>
-                    <td className="px-5 py-3 text-[var(--color-muted)]">
-                      {c.email ?? "—"}
-                    </td>
-                    <td className="px-5 py-3 text-[var(--color-muted)]">
-                      {new Date(c.created_at).toLocaleDateString("es-MX", {
-                        day: "2-digit",
-                        month: "short",
-                        year: "numeric",
-                      })}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {clients.map((cliente) => (
+                <Card key={cliente.id} className="border-border/50">
+                  <CardContent className="p-4">
+                    {/* Header de la card */}
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-3">
+                        <Avatar className="h-12 w-12">
+                          <AvatarFallback className="bg-primary/10 text-primary font-medium text-sm">
+                            {getInitials(cliente.full_name)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <p className="font-medium text-foreground text-sm">
+                            {cliente.full_name}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            Desde {formatDate(cliente.created_at)}
+                          </p>
+                        </div>
+                      </div>
+
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={() =>
+                              router.push(`/dashboard/citas?client_id=${cliente.id}`)
+                            }
+                          >
+                            Nueva cita
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+
+                    {/* Contacto */}
+                    <div className="mt-4 space-y-2">
+                      {cliente.email && (
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <Mail className="h-4 w-4 shrink-0" />
+                          <span className="truncate">{cliente.email}</span>
+                        </div>
+                      )}
+                      {cliente.phone && (
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <Phone className="h-4 w-4 shrink-0" />
+                          {cliente.phone}
+                        </div>
+                      )}
+                      {!cliente.email && !cliente.phone && (
+                        <p className="text-xs text-muted-foreground">
+                          Sin datos de contacto
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Notas / alergias */}
+                    {(cliente.notes || cliente.allergies) && (
+                      <p className="mt-3 rounded-md bg-accent/50 p-2 text-xs text-muted-foreground line-clamp-2">
+                        {cliente.allergies
+                          ? `⚠ ${cliente.allergies}`
+                          : cliente.notes}
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
           )}
-        </div>
+        </>
       )}
     </div>
   );

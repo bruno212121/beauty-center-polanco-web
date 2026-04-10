@@ -1,175 +1,239 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { api, ApiError } from "@/lib/api";
+import { useEffect, useState, useCallback } from "react";
+import { Plus, Search, Clock, DollarSign } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useAuth } from "@/context/AuthContext";
-import type { Service } from "@/types/service";
+import { api, ApiError } from "@/lib/api";
+import type { Service, ServiceCreate } from "@/types/service";
+
+const CATEGORIES = ["Cabello", "Uñas", "Peinados", "Maquillaje", "Corporales", "Faciales"];
+
+const CATEGORY_COLORS: Record<string, string> = {
+  Cabello:    "bg-primary/15 text-primary",
+  Uñas:       "bg-rose-100 text-rose-700",
+  Peinados:   "bg-amber-100 text-amber-700",
+  Maquillaje: "bg-violet-100 text-violet-700",
+  Corporales: "bg-cyan-100 text-cyan-700",
+  Faciales:   "bg-emerald-100 text-emerald-700",
+};
+
+interface ServiceForm {
+  name: string;
+  category: string;
+  price: string;
+  duration_minutes: string;
+  description: string;
+}
+
+const EMPTY_FORM: ServiceForm = {
+  name: "", category: "", price: "", duration_minutes: "", description: "",
+};
 
 export default function ServiciosPage() {
   const { user } = useAuth();
+
   const [services, setServices] = useState<Service[]>([]);
+  const [search, setSearch] = useState("");
   const [activeOnly, setActiveOnly] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    async function fetchServices() {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const params = new URLSearchParams();
-        if (activeOnly) params.set("active_only", "true");
-        const data = await api.get<Service[]>(`/services/?${params}`);
-        setServices(data);
-      } catch (err) {
-        if (err instanceof ApiError) setError(err.message);
-        else setError("Error al cargar servicios.");
-      } finally {
-        setIsLoading(false);
-      }
-    }
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState<ServiceForm>(EMPTY_FORM);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-    fetchServices();
+  const fetchServices = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const params = new URLSearchParams();
+      if (activeOnly) params.set("active_only", "true");
+      setServices(await api.get<Service[]>(`/services/?${params}`));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Error al cargar servicios.");
+    } finally {
+      setIsLoading(false);
+    }
   }, [activeOnly]);
 
+  useEffect(() => { fetchServices(); }, [fetchServices]);
+
+  function handleField(key: keyof ServiceForm, value: string) {
+    setForm((f) => ({ ...f, [key]: value }));
+  }
+
+  function handleDialogChange(v: boolean) {
+    setOpen(v);
+    if (!v) { setForm(EMPTY_FORM); setFormError(null); }
+  }
+
+  async function handleSubmit() {
+    if (!form.name.trim() || !form.category || !form.price || !form.duration_minutes) {
+      setFormError("Nombre, categoría, precio y duración son obligatorios.");
+      return;
+    }
+    setIsSubmitting(true);
+    setFormError(null);
+    try {
+      const body: ServiceCreate = {
+        name: form.name.trim(),
+        category: form.category,
+        price: Number(form.price),
+        duration_minutes: Number(form.duration_minutes),
+        ...(form.description.trim() && { description: form.description.trim() }),
+        active: true,
+      };
+      await api.post("/services/", body);
+      handleDialogChange(false);
+      fetchServices();
+    } catch (err) {
+      setFormError(err instanceof ApiError ? err.message : "Error al guardar.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  const filtered = services.filter(
+    (s) =>
+      s.name.toLowerCase().includes(search.toLowerCase()) ||
+      s.category.toLowerCase().includes(search.toLowerCase()),
+  );
+
   return (
-    <div className="flex flex-col gap-6">
-      {/* Encabezado */}
-      <div className="flex items-end justify-between gap-4 flex-wrap">
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
-          <p
-            className="text-xs tracking-[0.3em] uppercase text-[var(--color-gold)]"
-            style={{ fontFamily: "var(--font-body)" }}
-          >
-            Dashboard
+          <h1 className="text-2xl font-semibold text-foreground">Servicios</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Catálogo de servicios del salón
           </p>
-          <h1
-            className="text-4xl text-[var(--color-charcoal)] mt-0.5"
-            style={{ fontFamily: "var(--font-heading)" }}
-          >
-            Servicios
-          </h1>
         </div>
 
         <div className="flex items-center gap-4">
-          {/* Toggle activos */}
-          <label
-            className="flex items-center gap-2 text-sm text-[var(--color-muted)] cursor-pointer select-none"
-            style={{ fontFamily: "var(--font-body)" }}
-          >
-            <input
-              type="checkbox"
-              checked={activeOnly}
-              onChange={(e) => setActiveOnly(e.target.checked)}
-              className="accent-[var(--color-rose)]"
-            />
+          <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
+            <input type="checkbox" checked={activeOnly} onChange={(e) => setActiveOnly(e.target.checked)} className="accent-primary" />
             Solo activos
           </label>
 
-          {/* Crear — solo admin */}
           {user?.role === "admin" && (
-            <button
-              className="px-5 py-2 text-sm tracking-widest uppercase bg-[var(--color-rose)] text-white hover:bg-[var(--color-rose-dark)] transition-colors"
-              style={{ fontFamily: "var(--font-body)" }}
-              disabled
-              title="Próximamente"
-            >
-              + Nuevo
-            </button>
+            <Dialog open={open} onOpenChange={handleDialogChange}>
+              <DialogTrigger asChild>
+                <Button><Plus className="h-4 w-4" />Nuevo Servicio</Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-md">
+                <DialogHeader><DialogTitle>Nuevo Servicio</DialogTitle></DialogHeader>
+                <div className="grid gap-4">
+                  {formError && (
+                    <p className="text-sm text-red-600 bg-red-50 border border-red-200 px-3 py-2 rounded-lg">{formError}</p>
+                  )}
+                  <div className="grid gap-2">
+                    <Label>Nombre <span className="text-red-400">*</span></Label>
+                    <Input placeholder="Ej: Corte de Cabello" value={form.name} onChange={(e) => handleField("name", e.target.value)} />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Categoría <span className="text-red-400">*</span></Label>
+                    <Select value={form.category} onValueChange={(v) => handleField("category", v)}>
+                      <SelectTrigger><SelectValue placeholder="Seleccionar categoría" /></SelectTrigger>
+                      <SelectContent>
+                        {CATEGORIES.map((cat) => (
+                          <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="grid gap-2">
+                      <Label>Precio <span className="text-red-400">*</span></Label>
+                      <Input type="number" placeholder="350" value={form.price} onChange={(e) => handleField("price", e.target.value)} />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label>Duración (min) <span className="text-red-400">*</span></Label>
+                      <Input type="number" placeholder="45" value={form.duration_minutes} onChange={(e) => handleField("duration_minutes", e.target.value)} />
+                    </div>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Descripción</Label>
+                    <Input placeholder="Descripción opcional..." value={form.description} onChange={(e) => handleField("description", e.target.value)} />
+                  </div>
+                  <Button className="mt-1" onClick={handleSubmit} disabled={isSubmitting}>
+                    {isSubmitting ? "Guardando..." : "Guardar Servicio"}
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
           )}
         </div>
       </div>
 
-      {/* Estado de carga */}
-      {isLoading && (
-        <p
-          className="text-sm text-[var(--color-muted)] tracking-widest"
-          style={{ fontFamily: "var(--font-body)" }}
-        >
-          Cargando...
-        </p>
-      )}
+      {/* Buscador */}
+      <div className="relative max-w-sm">
+        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Input placeholder="Buscar servicios..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+      </div>
 
-      {/* Error */}
-      {error && (
-        <div
-          className="text-sm text-red-600 bg-red-50 border border-red-200 px-4 py-3"
-          style={{ fontFamily: "var(--font-body)" }}
-        >
-          {error}
-        </div>
-      )}
+      {isLoading && <p className="text-sm text-muted-foreground">Cargando servicios...</p>}
+      {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 px-4 py-3 rounded-lg">{error}</p>}
 
-      {/* Grid de servicios */}
       {!isLoading && !error && (
-        <>
-          {services.length === 0 ? (
-            <p
-              className="text-sm text-[var(--color-muted)] py-10 text-center"
-              style={{ fontFamily: "var(--font-body)" }}
-            >
-              No se encontraron servicios.
-            </p>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {services.map((s) => (
-                <div
-                  key={s.id}
-                  className="bg-white border border-[var(--color-rose-light)]/40 px-5 py-5 flex flex-col gap-3"
-                >
-                  {/* Badge categoría + estado */}
-                  <div className="flex items-center justify-between">
-                    <span
-                      className="text-[10px] tracking-widest uppercase text-[var(--color-gold)]"
-                      style={{ fontFamily: "var(--font-body)" }}
-                    >
-                      {s.category}
-                    </span>
-                    {!s.active && (
-                      <span
-                        className="text-[10px] tracking-widest uppercase text-[var(--color-muted)] bg-[var(--color-cream)] px-2 py-0.5"
-                        style={{ fontFamily: "var(--font-body)" }}
+        filtered.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-10">No se encontraron servicios.</p>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {filtered.map((serv) => (
+              <Card key={serv.id} className="border-border/50 transition-colors hover:bg-accent/30">
+                <CardContent className="p-5">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-medium text-foreground text-sm truncate">{serv.name}</h3>
+                      <Badge
+                        variant="secondary"
+                        className={`mt-2 ${CATEGORY_COLORS[serv.category] ?? "bg-slate-100 text-slate-700"}`}
                       >
+                        {serv.category}
+                      </Badge>
+                    </div>
+                    {!serv.active && (
+                      <Badge variant="secondary" className="bg-slate-100 text-slate-500 shrink-0">
                         Inactivo
-                      </span>
+                      </Badge>
                     )}
                   </div>
-
-                  {/* Nombre */}
-                  <p
-                    className="text-xl text-[var(--color-charcoal)] leading-snug"
-                    style={{ fontFamily: "var(--font-heading)" }}
-                  >
-                    {s.name}
-                  </p>
-
-                  {/* Descripción */}
-                  {s.description && (
-                    <p
-                      className="text-sm text-[var(--color-muted)] leading-relaxed line-clamp-2"
-                      style={{ fontFamily: "var(--font-body)" }}
-                    >
-                      {s.description}
-                    </p>
-                  )}
-
-                  {/* Duración + precio */}
-                  <div
-                    className="flex items-center justify-between pt-2 border-t border-[var(--color-rose-light)]/30 text-sm"
-                    style={{ fontFamily: "var(--font-body)" }}
-                  >
-                    <span className="text-[var(--color-muted)]">
-                      {s.duration_minutes} min
-                    </span>
-                    <span className="text-[var(--color-charcoal)] font-medium">
-                      ${Number(s.price).toLocaleString("es-MX")} MXN
-                    </span>
+                  <div className="mt-4 flex items-center justify-between">
+                    <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                      <Clock className="h-4 w-4" />
+                      {serv.duration_minutes} min
+                    </div>
+                    <div className="flex items-center gap-0.5 text-xl font-semibold text-foreground">
+                      <DollarSign className="h-4 w-4" />
+                      {Number(serv.price).toLocaleString("es-MX")}
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )
       )}
     </div>
   );

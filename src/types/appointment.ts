@@ -37,9 +37,9 @@ export interface Appointment {
 
 export interface AppointmentCreate {
   client_id: number;
-  stylist_id: number;
   service_id: number;
   start_time: string;
+  stylist_id?: number;
   notes?: string;
 }
 
