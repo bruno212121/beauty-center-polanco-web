@@ -36,10 +36,10 @@ export default function DashboardLayout({
   if (!isAuthenticated) return null;
 
   return (
-    <div className="min-h-screen bg-[var(--color-cream)]">
+    <div className="min-h-screen bg-[#FDF0F2]">
       <Sidebar />
       <div className="pl-64 flex flex-col min-h-screen">
-        <main className="flex-1 p-8">{children}</main>
+        <main className="dashboard flex-1 p-8">{children}</main>
       </div>
     </div>
   );
