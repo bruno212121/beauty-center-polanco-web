@@ -13,6 +13,7 @@ import {
   LogOut,
   Percent,
   ShieldCheck,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
@@ -37,7 +38,12 @@ const navigation: NavItem[] = [
   { name: "Usuarios",   href: "/dashboard/usuarios",  icon: ShieldCheck,     roles: ["admin"] },
 ];
 
-export default function Sidebar() {
+interface SidebarProps {
+  mobileOpen?: boolean;
+  onMobileClose?: () => void;
+}
+
+export default function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
   const pathname = usePathname();
   const { user, logout } = useAuth();
 
@@ -46,19 +52,33 @@ export default function Sidebar() {
   );
 
   return (
-    <aside className="fixed left-0 top-0 z-40 h-screen w-64 border-r bg-[var(--color-sidebar)] border-[var(--color-sidebar-border)]">
+    <aside
+      className={cn(
+        "fixed left-0 top-0 z-50 h-screen w-64 border-r bg-[var(--color-sidebar)] border-[var(--color-sidebar-border)] transition-transform duration-200 ease-out",
+        "md:translate-x-0",
+        mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0",
+      )}
+    >
       <div className="flex h-full flex-col">
         {/* Logo */}
-        <div className="flex h-16 items-center gap-2 border-b px-6 border-[var(--color-sidebar-border)]">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--color-rose)]">
+        <div className="flex h-16 items-center gap-2 border-b px-4 md:px-6 border-[var(--color-sidebar-border)]">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--color-rose)]">
             <Scissors className="h-4 w-4 text-white" />
           </div>
           <span
-            className="font-semibold text-[var(--color-sidebar-foreground)] tracking-wide"
+            className="min-w-0 flex-1 font-semibold text-[var(--color-sidebar-foreground)] tracking-wide truncate"
             style={{ fontFamily: "var(--font-body)" }}
           >
             Beauty Center
           </span>
+          <button
+            type="button"
+            className="md:hidden rounded-lg p-2 text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground"
+            aria-label="Cerrar menú"
+            onClick={() => onMobileClose?.()}
+          >
+            <X className="h-5 w-5" />
+          </button>
         </div>
 
         {/* Navegación */}
@@ -73,6 +93,7 @@ export default function Sidebar() {
               <Link
                 key={item.name}
                 href={item.href}
+                onClick={() => onMobileClose?.()}
                 className={cn(
                   "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
                   isActive
