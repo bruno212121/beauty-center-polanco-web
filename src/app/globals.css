@@ -21,6 +21,16 @@
   /* Tipografía */
   --font-heading: var(--font-cormorant);
   --font-body:    var(--font-jost);
+
+  /* Sidebar */
+  --color-sidebar:                  #ffffff;
+  --color-sidebar-border:           rgba(0, 0, 0, 0.07);
+  --color-sidebar-foreground:       #2C2C2C;
+  --color-sidebar-foreground-muted: #6b7280;
+  --color-sidebar-accent:           rgba(201, 132, 138, 0.1);
+  --color-sidebar-primary:          #9E5F65;
+  --color-primary-foreground:       #ffffff;
+  --color-muted-foreground:         #6b7280;
 }
 
 /* Base */
