@@ -2,14 +2,34 @@
 
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { api, ApiError } from "@/lib/api";
+import { Percent } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import RoleGuard from "@/components/RoleGuard";
-import type { Commission, CommissionSummary, CommissionSourceType, CommissionPeriod } from "@/types/commission";
+import { api, ApiError } from "@/lib/api";
+import type {
+  Commission,
+  CommissionSummary,
+  CommissionSourceType,
+  CommissionPeriod,
+} from "@/types/commission";
 import type { Stylist } from "@/types/stylist";
 
 const SOURCE_LABELS: Record<CommissionSourceType, string> = {
   service: "Servicio",
   product: "Producto",
+};
+
+const SOURCE_COLORS: Record<CommissionSourceType, string> = {
+  service: "bg-primary/15 text-primary",
+  product: "bg-amber-100 text-amber-700",
 };
 
 const PERIOD_OPTIONS: { value: CommissionPeriod | ""; label: string }[] = [
@@ -25,20 +45,18 @@ export default function ComisionesPage() {
   const [selectedStylistId, setSelectedStylistId] = useState<string>(
     searchParams.get("stylist_id") ?? "",
   );
-  const [period, setPeriod] = useState<CommissionPeriod | "">("");
-  const [sourceType, setSourceType] = useState<CommissionSourceType | "">("");
+  const [period, setPeriod] = useState<string>("");
+  const [sourceType, setSourceType] = useState<string>("");
 
   const [commissions, setCommissions] = useState<Commission[]>([]);
   const [summary, setSummary] = useState<CommissionSummary | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Cargar lista de estilistas para el selector
   useEffect(() => {
     api.get<Stylist[]>("/stylists/").then(setStylists).catch(() => null);
   }, []);
 
-  // Cargar comisiones cuando cambian los filtros
   useEffect(() => {
     if (!selectedStylistId) {
       setCommissions([]);
@@ -51,8 +69,10 @@ export default function ComisionesPage() {
       setError(null);
       try {
         const params = new URLSearchParams();
-        if (period) params.set("period", period);
-        if (sourceType) params.set("source_type", sourceType);
+        const activePeriod = period === "_all" ? "" : period;
+        const activeSource = sourceType === "_all" ? "" : sourceType;
+        if (activePeriod) params.set("period", activePeriod);
+        if (activeSource) params.set("source_type", activeSource);
 
         const [commData, summaryData] = await Promise.all([
           api.get<Commission[]>(`/commissions/stylist/${selectedStylistId}?${params}`),
@@ -62,8 +82,7 @@ export default function ComisionesPage() {
         setCommissions(commData);
         setSummary(summaryData);
       } catch (err) {
-        if (err instanceof ApiError) setError(err.message);
-        else setError("Error al cargar comisiones.");
+        setError(err instanceof ApiError ? err.message : "Error al cargar comisiones.");
       } finally {
         setIsLoading(false);
       }
@@ -76,176 +95,168 @@ export default function ComisionesPage() {
     <RoleGuard
       allowed={["admin"]}
       fallback={
-        <p className="text-sm text-[var(--color-muted)]" style={{ fontFamily: "var(--font-body)" }}>
-          No tenés acceso a esta sección.
-        </p>
+        <p className="text-sm text-muted-foreground">No tenés acceso a esta sección.</p>
       }
     >
-      <div className="flex flex-col gap-6">
-        {/* Encabezado */}
+      <div className="space-y-6">
+        {/* Header */}
         <div>
-          <p
-            className="text-xs tracking-[0.3em] uppercase text-[var(--color-gold)]"
-            style={{ fontFamily: "var(--font-body)" }}
-          >
-            Dashboard · Admin
+          <h1 className="text-2xl font-semibold text-foreground">Comisiones</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Reporte de comisiones por estilista
           </p>
-          <h1
-            className="text-4xl text-[var(--color-charcoal)] mt-0.5"
-            style={{ fontFamily: "var(--font-heading)" }}
-          >
-            Comisiones
-          </h1>
         </div>
 
         {/* Filtros */}
         <div className="flex flex-wrap gap-3">
-          {/* Selector de estilista */}
-          <select
-            value={selectedStylistId}
-            onChange={(e) => setSelectedStylistId(e.target.value)}
-            className="border border-[var(--color-rose-light)] bg-white px-4 py-2 text-sm text-[var(--color-charcoal)] outline-none focus:border-[var(--color-rose)] transition-colors"
-            style={{ fontFamily: "var(--font-body)" }}
-          >
-            <option value="">Seleccionar estilista</option>
-            {stylists.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.user.full_name}
-              </option>
-            ))}
-          </select>
+          <div className="w-56">
+            <Select value={selectedStylistId} onValueChange={setSelectedStylistId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Seleccionar estilista" />
+              </SelectTrigger>
+              <SelectContent>
+                {stylists.map((s) => (
+                  <SelectItem key={s.id} value={String(s.id)}>
+                    {s.user.full_name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-          {/* Período */}
-          <select
-            value={period}
-            onChange={(e) => setPeriod(e.target.value as CommissionPeriod | "")}
-            disabled={!selectedStylistId}
-            className="border border-[var(--color-rose-light)] bg-white px-4 py-2 text-sm text-[var(--color-charcoal)] outline-none focus:border-[var(--color-rose)] transition-colors disabled:opacity-50"
-            style={{ fontFamily: "var(--font-body)" }}
-          >
-            {PERIOD_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
+          <div className="w-48">
+            <Select
+              value={period}
+              onValueChange={setPeriod}
+              disabled={!selectedStylistId}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Período" />
+              </SelectTrigger>
+              <SelectContent>
+                {PERIOD_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value === "" ? "_all" : opt.value}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-          {/* Tipo de fuente */}
-          <select
-            value={sourceType}
-            onChange={(e) => setSourceType(e.target.value as CommissionSourceType | "")}
-            disabled={!selectedStylistId}
-            className="border border-[var(--color-rose-light)] bg-white px-4 py-2 text-sm text-[var(--color-charcoal)] outline-none focus:border-[var(--color-rose)] transition-colors disabled:opacity-50"
-            style={{ fontFamily: "var(--font-body)" }}
-          >
-            <option value="">Todos los tipos</option>
-            <option value="service">Servicios</option>
-            <option value="product">Productos</option>
-          </select>
+          <div className="w-44">
+            <Select
+              value={sourceType}
+              onValueChange={setSourceType}
+              disabled={!selectedStylistId}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Tipo" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="_all">Todos los tipos</SelectItem>
+                <SelectItem value="service">Servicios</SelectItem>
+                <SelectItem value="product">Productos</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
-        {/* Placeholder inicial */}
+        {/* Estado vacío */}
         {!selectedStylistId && (
-          <p className="text-sm text-[var(--color-muted)] py-10 text-center" style={{ fontFamily: "var(--font-body)" }}>
+          <p className="text-sm text-muted-foreground text-center py-10">
             Seleccioná un estilista para ver sus comisiones.
           </p>
         )}
 
         {isLoading && (
-          <p className="text-sm text-[var(--color-muted)] tracking-widest" style={{ fontFamily: "var(--font-body)" }}>
-            Cargando...
-          </p>
+          <p className="text-sm text-muted-foreground">Cargando comisiones...</p>
         )}
 
         {error && (
-          <div className="text-sm text-red-600 bg-red-50 border border-red-200 px-4 py-3" style={{ fontFamily: "var(--font-body)" }}>
+          <p className="text-sm text-red-600 bg-red-50 border border-red-200 px-4 py-3 rounded-lg">
             {error}
-          </div>
+          </p>
         )}
 
-        {/* Resumen */}
+        {/* Tarjetas de resumen */}
         {!isLoading && summary && (
           <div className="grid grid-cols-3 gap-4">
             {[
-              { label: "Servicios",  value: summary.total_service_commissions },
-              { label: "Productos",  value: summary.total_product_commissions },
-              { label: "Total",      value: summary.total },
+              { label: "Servicios", value: summary.total_service_commissions },
+              { label: "Productos", value: summary.total_product_commissions },
+              { label: "Total",     value: summary.total },
             ].map((item) => (
-              <div
-                key={item.label}
-                className="bg-white border border-[var(--color-rose-light)]/40 px-5 py-4 flex flex-col gap-1"
-              >
-                <p
-                  className="text-xs tracking-widest uppercase text-[var(--color-muted)]"
-                  style={{ fontFamily: "var(--font-body)" }}
-                >
-                  {item.label}
-                </p>
-                <p
-                  className="text-3xl text-[var(--color-charcoal)]"
-                  style={{ fontFamily: "var(--font-heading)" }}
-                >
-                  ${Number(item.value).toLocaleString("es-MX")}
-                </p>
-              </div>
+              <Card key={item.label} className="border-border/50">
+                <CardContent className="p-5 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">{item.label}</p>
+                    <p className="text-2xl font-semibold text-foreground mt-1">
+                      ${Number(item.value).toLocaleString("es-MX")}
+                    </p>
+                  </div>
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 shrink-0">
+                    <Percent className="h-5 w-5 text-primary" />
+                  </div>
+                </CardContent>
+              </Card>
             ))}
           </div>
         )}
 
-        {/* Tabla detalle */}
+        {/* Tabla de detalle */}
         {!isLoading && commissions.length > 0 && (
-          <div className="bg-white border border-[var(--color-rose-light)]/40 overflow-x-auto">
-            <table className="w-full text-sm" style={{ fontFamily: "var(--font-body)" }}>
-              <thead>
-                <tr className="border-b border-[var(--color-rose-light)]/40">
-                  {["Tipo", "Referencia", "Porcentaje", "Monto", "Fecha"].map((col) => (
-                    <th
-                      key={col}
-                      className="text-left text-xs tracking-widest uppercase text-[var(--color-muted)] px-5 py-3 font-normal"
-                    >
-                      {col}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {commissions.map((c) => (
-                  <tr
-                    key={c.id}
-                    className="border-b border-[var(--color-rose-light)]/20 hover:bg-[var(--color-cream)] transition-colors"
-                  >
-                    <td className="px-5 py-3">
-                      <span
-                        className={`text-[10px] tracking-widest uppercase px-2 py-0.5 ${
-                          c.source_type === "service"
-                            ? "bg-blue-50 text-blue-600"
-                            : "bg-amber-50 text-amber-600"
-                        }`}
+          <Card className="border-border/50 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border/60 bg-accent/20">
+                    {["Tipo", "Referencia", "Porcentaje", "Monto", "Fecha"].map((col) => (
+                      <th
+                        key={col}
+                        className="text-left text-xs font-medium uppercase tracking-wide text-muted-foreground px-5 py-3"
                       >
-                        {SOURCE_LABELS[c.source_type]}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3 text-[var(--color-muted)]">#{c.source_id}</td>
-                    <td className="px-5 py-3 text-[var(--color-muted)]">{c.percentage}%</td>
-                    <td className="px-5 py-3 text-[var(--color-charcoal)] font-medium">
-                      ${Number(c.amount).toLocaleString("es-MX")}
-                    </td>
-                    <td className="px-5 py-3 text-[var(--color-muted)] whitespace-nowrap">
-                      {new Date(c.created_at).toLocaleDateString("es-MX", {
-                        day: "2-digit",
-                        month: "short",
-                        year: "numeric",
-                      })}
-                    </td>
+                        {col}
+                      </th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-border/40">
+                  {commissions.map((c) => (
+                    <tr key={c.id} className="hover:bg-accent/20 transition-colors">
+                      <td className="px-5 py-3">
+                        <Badge
+                          variant="secondary"
+                          className={SOURCE_COLORS[c.source_type]}
+                        >
+                          {SOURCE_LABELS[c.source_type]}
+                        </Badge>
+                      </td>
+                      <td className="px-5 py-3 text-muted-foreground">
+                        #{c.source_id}
+                      </td>
+                      <td className="px-5 py-3 text-muted-foreground">
+                        {c.percentage}%
+                      </td>
+                      <td className="px-5 py-3 font-medium text-foreground">
+                        ${Number(c.amount).toLocaleString("es-MX")}
+                      </td>
+                      <td className="px-5 py-3 text-muted-foreground whitespace-nowrap">
+                        {new Date(c.created_at).toLocaleDateString("es-MX", {
+                          day: "2-digit",
+                          month: "short",
+                          year: "numeric",
+                        })}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
         )}
 
         {!isLoading && selectedStylistId && commissions.length === 0 && !error && (
-          <p className="text-sm text-[var(--color-muted)] py-6 text-center" style={{ fontFamily: "var(--font-body)" }}>
+          <p className="text-sm text-muted-foreground text-center py-10">
             No se encontraron comisiones con los filtros seleccionados.
           </p>
         )}

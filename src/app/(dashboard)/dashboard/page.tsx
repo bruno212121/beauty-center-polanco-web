@@ -9,6 +9,8 @@ import { useAuth } from "@/context/AuthContext";
 import RoleGuard from "@/components/RoleGuard";
 import { api } from "@/lib/api";
 import type { Appointment, AppointmentStatus } from "@/types/appointment";
+import type { Client } from "@/types/client";
+import type { Sale } from "@/types/sale";
 
 /* ─── Helpers ─── */
 
@@ -20,6 +22,18 @@ function isToday(dateStr: string) {
     d.getMonth() === now.getMonth() &&
     d.getDate() === now.getDate()
   );
+}
+
+function isThisMonth(dateStr: string) {
+  const d = new Date(dateStr);
+  const now = new Date();
+  return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+}
+
+function fmtMXN(amount: number) {
+  if (amount === 0) return "$0";
+  if (amount >= 1000) return `$${(amount / 1000).toFixed(1)}k`;
+  return `$${amount.toLocaleString("es-MX")}`;
 }
 
 const STATUS_LABELS: Record<AppointmentStatus, string> = {
@@ -36,38 +50,69 @@ const STATUS_BADGE: Record<AppointmentStatus, string> = {
   cancelled:   "bg-red-50 text-red-400 hover:bg-red-50",
 };
 
+/* ─── State types ─── */
+
+interface DashboardStats {
+  citasHoy: Appointment[];
+  citasPendientes: number;
+  totalClientes: number;
+  ventasHoy: number;
+  transaccionesHoy: number;
+  ingResesMes: number;
+}
+
 /* ─── Page ─── */
 
 export default function DashboardPage() {
   const { user } = useAuth();
 
-  const [citasHoy, setCitasHoy] = useState<Appointment[]>([]);
-  const [pendientes, setPendientes] = useState(0);
+  const [stats, setStats] = useState<DashboardStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     async function fetchData() {
       try {
-        // Traemos scheduled + in_progress y filtramos al día de hoy
-        const [scheduled, inProgress] = await Promise.all([
+        const [scheduled, inProgress, clients, sales] = await Promise.all([
           api.get<Appointment[]>("/appointments/?appointment_status=scheduled"),
           api.get<Appointment[]>("/appointments/?appointment_status=in_progress"),
+          api.get<Client[]>("/clients/"),
+          api.get<Sale[]>("/sales/"),
         ]);
 
-        const today = [...scheduled, ...inProgress].filter((a) =>
-          isToday(a.start_time),
-        );
+        // Citas de hoy (scheduled + in_progress)
+        const citasHoy = [...scheduled, ...inProgress]
+          .filter((a) => isToday(a.start_time))
+          .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
 
-        // Ordenar por hora
-        today.sort(
-          (a, b) =>
-            new Date(a.start_time).getTime() - new Date(b.start_time).getTime(),
-        );
+        const citasPendientes = scheduled.filter((a) => isToday(a.start_time)).length;
 
-        setCitasHoy(today);
-        setPendientes(scheduled.filter((a) => isToday(a.start_time)).length);
+        // Ventas del día
+        const salesHoy = sales.filter((s) => isToday(s.created_at));
+        const ventasHoy = salesHoy.reduce((sum, s) => sum + Number(s.total_amount), 0);
+
+        // Ingresos del mes
+        const ingResesMes = sales
+          .filter((s) => isThisMonth(s.created_at))
+          .reduce((sum, s) => sum + Number(s.total_amount), 0);
+
+        setStats({
+          citasHoy,
+          citasPendientes,
+          totalClientes: clients.length,
+          ventasHoy,
+          transaccionesHoy: salesHoy.length,
+          ingResesMes,
+        });
       } catch {
-        // Si el backend no está disponible, dejamos lista vacía
+        // Si el backend no está disponible, mostramos ceros
+        setStats({
+          citasHoy: [],
+          citasPendientes: 0,
+          totalClientes: 0,
+          ventasHoy: 0,
+          transaccionesHoy: 0,
+          ingResesMes: 0,
+        });
       } finally {
         setIsLoading(false);
       }
@@ -75,9 +120,6 @@ export default function DashboardPage() {
 
     fetchData();
   }, []);
-
-  const citasCount = isLoading ? "—" : String(citasHoy.length);
-  const pendientesText = isLoading ? "Cargando..." : `${pendientes} agendada${pendientes !== 1 ? "s" : ""}`;
 
   return (
     <div className="space-y-8">
@@ -94,26 +136,34 @@ export default function DashboardPage() {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StatCard
             title="Citas Hoy"
-            value={citasCount}
-            subtitle={pendientesText}
+            value={isLoading ? "—" : String(stats?.citasHoy.length ?? 0)}
+            subtitle={
+              isLoading
+                ? "Cargando..."
+                : `${stats?.citasPendientes ?? 0} pendiente${stats?.citasPendientes !== 1 ? "s" : ""}`
+            }
             icon={Calendar}
           />
           <StatCard
             title="Clientes Activos"
-            value="—"
-            subtitle="Próximamente"
+            value={isLoading ? "—" : String(stats?.totalClientes ?? 0)}
+            subtitle={isLoading ? "Cargando..." : "Total registrados"}
             icon={Users}
           />
           <StatCard
             title="Ventas del Día"
-            value="—"
-            subtitle="Próximamente"
+            value={isLoading ? "—" : fmtMXN(stats?.ventasHoy ?? 0)}
+            subtitle={
+              isLoading
+                ? "Cargando..."
+                : `${stats?.transaccionesHoy ?? 0} transacción${stats?.transaccionesHoy !== 1 ? "es" : ""}`
+            }
             icon={DollarSign}
           />
           <StatCard
             title="Ingresos del Mes"
-            value="—"
-            subtitle="Próximamente"
+            value={isLoading ? "—" : fmtMXN(stats?.ingResesMes ?? 0)}
+            subtitle={isLoading ? "Cargando..." : "Mes actual"}
             icon={TrendingUp}
           />
         </div>
@@ -129,13 +179,13 @@ export default function DashboardPage() {
             <p className="text-sm text-muted-foreground py-4 text-center">
               Cargando citas...
             </p>
-          ) : citasHoy.length === 0 ? (
+          ) : (stats?.citasHoy.length ?? 0) === 0 ? (
             <p className="text-sm text-muted-foreground py-4 text-center">
               No hay citas programadas para hoy.
             </p>
           ) : (
             <div className="space-y-3">
-              {citasHoy.map((cita) => {
+              {stats!.citasHoy.map((cita) => {
                 const hora = new Date(cita.start_time).toLocaleTimeString("es-MX", {
                   hour: "2-digit",
                   minute: "2-digit",
@@ -145,7 +195,7 @@ export default function DashboardPage() {
                 return (
                   <div
                     key={cita.id}
-                    className="flex items-center justify-between rounded-lg border border-border/50 bg-card p-4 transition-colors hover:bg-accent/50"
+                    className="flex items-center justify-between rounded-lg border border-border bg-white p-4 transition-colors hover:bg-accent/50"
                   >
                     <div className="flex items-center gap-4">
                       <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-xs font-medium text-primary shrink-0">

@@ -44,7 +44,7 @@ html {
 body {
   background-color: var(--color-background);
   color: var(--color-foreground);
-  font-family: var(--font-body), sans-serif;
+  font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
 }
 
 h1, h2, h3, h4, h5, h6 {
@@ -60,7 +60,7 @@ h1, h2, h3, h4, h5, h6 {
 .dashboard h4,
 .dashboard h5,
 .dashboard h6 {
-  font-family: var(--font-body), sans-serif;
+  font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
   font-weight: 600;
   letter-spacing: normal;
 }
