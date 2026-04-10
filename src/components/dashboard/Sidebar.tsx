@@ -12,6 +12,7 @@ import {
   UserCircle,
   LogOut,
   Percent,
+  ShieldCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
@@ -33,6 +34,7 @@ const navigation: NavItem[] = [
   { name: "Productos",  href: "/dashboard/productos",  icon: Package,         roles: ["admin", "receptionist"] },
   { name: "Ventas",     href: "/dashboard/ventas",     icon: DollarSign,      roles: ["admin", "receptionist"] },
   { name: "Comisiones", href: "/dashboard/comisiones", icon: Percent,         roles: ["admin"] },
+  { name: "Usuarios",   href: "/dashboard/usuarios",  icon: ShieldCheck,     roles: ["admin"] },
 ];
 
 export default function Sidebar() {

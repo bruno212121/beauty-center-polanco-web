@@ -48,16 +48,15 @@ function formatDate(dateStr: string) {
 
 interface ClientForm {
   full_name: string;
-  email: string;
   phone: string;
+  email: string;
+  preferences: string;
+  allergies: string;
   notes: string;
 }
 
 const EMPTY_FORM: ClientForm = {
-  full_name: "",
-  email: "",
-  phone: "",
-  notes: "",
+  full_name: "", phone: "", email: "", preferences: "", allergies: "", notes: "",
 };
 
 /* ─── Page ─── */
@@ -126,9 +125,11 @@ export default function ClientesPage() {
     try {
       const body: ClientCreate = {
         full_name: form.full_name.trim(),
-        ...(form.email.trim() && { email: form.email.trim() }),
-        ...(form.phone.trim() && { phone: form.phone.trim() }),
-        ...(form.notes.trim() && { notes: form.notes.trim() }),
+        ...(form.phone.trim()       && { phone: form.phone.trim() }),
+        ...(form.email.trim()       && { email: form.email.trim() }),
+        ...(form.preferences.trim() && { preferences: form.preferences.trim() }),
+        ...(form.allergies.trim()   && { allergies: form.allergies.trim() }),
+        ...(form.notes.trim()       && { notes: form.notes.trim() }),
       };
       await api.post("/clients/", body);
       handleDialogChange(false);
@@ -174,41 +175,64 @@ export default function ClientesPage() {
               )}
 
               <div className="grid gap-2">
-                <Label>
-                  Nombre completo <span className="text-red-400">*</span>
-                </Label>
+                <Label>Nombre completo <span className="text-red-400">*</span></Label>
                 <Input
-                  placeholder="Nombre del cliente"
+                  placeholder="Ej: María García"
                   value={form.full_name}
                   onChange={(e) => handleField("full_name", e.target.value)}
                 />
               </div>
 
-              <div className="grid gap-2">
-                <Label>Email</Label>
-                <Input
-                  type="email"
-                  placeholder="email@ejemplo.com"
-                  value={form.email}
-                  onChange={(e) => handleField("email", e.target.value)}
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div className="grid gap-2">
+                  <Label>Teléfono</Label>
+                  <Input
+                    placeholder="55 1234 5678"
+                    value={form.phone}
+                    onChange={(e) => handleField("phone", e.target.value)}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Email</Label>
+                  <Input
+                    type="email"
+                    placeholder="email@ejemplo.com"
+                    value={form.email}
+                    onChange={(e) => handleField("email", e.target.value)}
+                  />
+                </div>
               </div>
 
               <div className="grid gap-2">
-                <Label>Teléfono</Label>
-                <Input
-                  placeholder="55 1234 5678"
-                  value={form.phone}
-                  onChange={(e) => handleField("phone", e.target.value)}
-                />
-              </div>
-
-              <div className="grid gap-2">
-                <Label>Notas</Label>
+                <Label>Preferencias</Label>
                 <Textarea
-                  placeholder="Preferencias, alergias, notas..."
+                  placeholder="Ej: Le gusta el corte con capas, tinte suave..."
+                  value={form.preferences}
+                  onChange={(e) => handleField("preferences", e.target.value)}
+                  className="resize-none"
+                  rows={2}
+                />
+              </div>
+
+              <div className="grid gap-2">
+                <Label>Alergias</Label>
+                <Textarea
+                  placeholder="Ej: Alérgica al amoniaco..."
+                  value={form.allergies}
+                  onChange={(e) => handleField("allergies", e.target.value)}
+                  className="resize-none"
+                  rows={2}
+                />
+              </div>
+
+              <div className="grid gap-2">
+                <Label>Notas internas</Label>
+                <Textarea
+                  placeholder="Cualquier información adicional..."
                   value={form.notes}
                   onChange={(e) => handleField("notes", e.target.value)}
+                  className="resize-none"
+                  rows={2}
                 />
               </div>
 
