@@ -62,6 +62,83 @@ function clientToForm(c: Client): ClientForm {
   };
 }
 
+function ClientFormFields({
+  form,
+  formError,
+  onFieldChange,
+}: {
+  form: ClientForm;
+  formError: string | null;
+  onFieldChange: (key: keyof ClientForm, value: string) => void;
+}) {
+  return (
+    <>
+      {formError && (
+        <p className="text-sm text-red-600 bg-red-50 border border-red-200 px-3 py-2 rounded-lg">
+          {formError}
+        </p>
+      )}
+      <div className="grid gap-2">
+        <Label>Nombre completo <span className="text-red-400">*</span></Label>
+        <Input
+          placeholder="Ej: María García"
+          value={form.full_name}
+          onChange={(e) => onFieldChange("full_name", e.target.value)}
+        />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="grid gap-2">
+          <Label>Teléfono</Label>
+          <Input
+            placeholder="55 1234 5678"
+            value={form.phone}
+            onChange={(e) => onFieldChange("phone", e.target.value)}
+          />
+        </div>
+        <div className="grid gap-2">
+          <Label>Email</Label>
+          <Input
+            type="email"
+            placeholder="email@ejemplo.com"
+            value={form.email}
+            onChange={(e) => onFieldChange("email", e.target.value)}
+          />
+        </div>
+      </div>
+      <div className="grid gap-2">
+        <Label>Preferencias</Label>
+        <Textarea
+          placeholder="Ej: Le gusta el corte con capas..."
+          value={form.preferences}
+          onChange={(e) => onFieldChange("preferences", e.target.value)}
+          className="resize-none"
+          rows={2}
+        />
+      </div>
+      <div className="grid gap-2">
+        <Label>Alergias</Label>
+        <Textarea
+          placeholder="Ej: Alérgica al amoniaco..."
+          value={form.allergies}
+          onChange={(e) => onFieldChange("allergies", e.target.value)}
+          className="resize-none"
+          rows={2}
+        />
+      </div>
+      <div className="grid gap-2">
+        <Label>Notas internas</Label>
+        <Textarea
+          placeholder="Cualquier información adicional..."
+          value={form.notes}
+          onChange={(e) => onFieldChange("notes", e.target.value)}
+          className="resize-none"
+          rows={2}
+        />
+      </div>
+    </>
+  );
+}
+
 /* ─── Page ─── */
 
 export default function ClientesPage() {
@@ -180,45 +257,6 @@ export default function ClientesPage() {
     }
   }
 
-  /* ── Formulario compartido ── */
-  function ClientFormFields() {
-    return (
-      <>
-        {formError && (
-          <p className="text-sm text-red-600 bg-red-50 border border-red-200 px-3 py-2 rounded-lg">
-            {formError}
-          </p>
-        )}
-        <div className="grid gap-2">
-          <Label>Nombre completo <span className="text-red-400">*</span></Label>
-          <Input placeholder="Ej: María García" value={form.full_name} onChange={(e) => handleField("full_name", e.target.value)} />
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="grid gap-2">
-            <Label>Teléfono</Label>
-            <Input placeholder="55 1234 5678" value={form.phone} onChange={(e) => handleField("phone", e.target.value)} />
-          </div>
-          <div className="grid gap-2">
-            <Label>Email</Label>
-            <Input type="email" placeholder="email@ejemplo.com" value={form.email} onChange={(e) => handleField("email", e.target.value)} />
-          </div>
-        </div>
-        <div className="grid gap-2">
-          <Label>Preferencias</Label>
-          <Textarea placeholder="Ej: Le gusta el corte con capas..." value={form.preferences} onChange={(e) => handleField("preferences", e.target.value)} className="resize-none" rows={2} />
-        </div>
-        <div className="grid gap-2">
-          <Label>Alergias</Label>
-          <Textarea placeholder="Ej: Alérgica al amoniaco..." value={form.allergies} onChange={(e) => handleField("allergies", e.target.value)} className="resize-none" rows={2} />
-        </div>
-        <div className="grid gap-2">
-          <Label>Notas internas</Label>
-          <Textarea placeholder="Cualquier información adicional..." value={form.notes} onChange={(e) => handleField("notes", e.target.value)} className="resize-none" rows={2} />
-        </div>
-      </>
-    );
-  }
-
   /* ── Render ── */
   return (
     <div className="space-y-6">
@@ -242,7 +280,7 @@ export default function ClientesPage() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader><DialogTitle>Nuevo Cliente</DialogTitle></DialogHeader>
           <div className="grid gap-4">
-            <ClientFormFields />
+            <ClientFormFields form={form} formError={formError} onFieldChange={handleField} />
             <Button className="mt-1" onClick={handleCreate} disabled={isSubmitting}>
               {isSubmitting ? "Guardando..." : "Guardar Cliente"}
             </Button>
@@ -257,7 +295,7 @@ export default function ClientesPage() {
             <DialogTitle>Editar Cliente</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4">
-            <ClientFormFields />
+            <ClientFormFields form={form} formError={formError} onFieldChange={handleField} />
             <div className="flex gap-2 mt-1">
               <Button variant="outline" className="flex-1" onClick={() => closeEdit(false)}>
                 Cancelar
