@@ -1,0 +1,41 @@
+@import "tailwindcss";
+
+@theme inline {
+  /* Paleta principal */
+  --color-rose:         #C9848A;
+  --color-rose-light:   #E8C5C8;
+  --color-rose-dark:    #9E5F65;
+  --color-gold:         #C9A96E;
+  --color-gold-light:   #E8D5B0;
+  --color-cream:        #FAF7F2;
+  --color-charcoal:     #2C2C2C;
+  --color-muted:        #8C8C8C;
+
+  /* Semánticos */
+  --color-background:   var(--color-cream);
+  --color-foreground:   var(--color-charcoal);
+  --color-primary:      var(--color-rose);
+  --color-primary-dark: var(--color-rose-dark);
+  --color-accent:       var(--color-gold);
+
+  /* Tipografía */
+  --font-heading: var(--font-cormorant);
+  --font-body:    var(--font-jost);
+}
+
+/* Base */
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: var(--color-background);
+  color: var(--color-foreground);
+  font-family: var(--font-body), sans-serif;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading), serif;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+}
