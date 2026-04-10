@@ -17,4 +17,12 @@ export interface ServiceCreate {
   active?: boolean;
 }
 
-export type ServiceUpdate = Partial<ServiceCreate>;
+/** Body de `PATCH /services/{id}` — solo se envían campos que cambian */
+export interface ServiceUpdate {
+  name?: string;
+  category?: string | null;
+  duration_minutes?: number;
+  price?: number;
+  description?: string | null;
+  active?: boolean;
+}

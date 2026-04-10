@@ -12,12 +12,19 @@ export interface AppointmentClient {
 export interface AppointmentStylist {
   id: number;
   specialty: string | null;
+  /** Si el API lo envía plano */
+  full_name?: string;
+  user?: { full_name: string };
 }
 
 export interface AppointmentService {
   id: number;
   name: string;
+  category: string;
   duration_minutes: number;
+  price: string;
+  description: string | null;
+  active: boolean;
 }
 
 export interface Appointment {
@@ -30,6 +37,8 @@ export interface Appointment {
   status: AppointmentStatus;
   notes: string | null;
   created_at: string;
+  /** Precio de la cita al momento de crear (si el backend lo envía) */
+  total_amount?: string;
   client: AppointmentClient;
   stylist: AppointmentStylist;
   service: AppointmentService;
@@ -45,5 +54,6 @@ export interface AppointmentCreate {
 
 export interface AppointmentUpdate {
   status?: AppointmentStatus;
-  notes?: string;
+  notes?: string | null;
+  start_time?: string;
 }

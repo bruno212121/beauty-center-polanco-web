@@ -39,8 +39,9 @@ export default function RootLayout({
     <html
       lang="es"
       className={`${cormorant.variable} ${jost.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
-      <body className="min-h-full bg-[var(--color-background)] text-[var(--color-foreground)]">
+      <body className="min-h-full bg-[var(--color-background)] text-[var(--color-foreground)]" suppressHydrationWarning>
         <AuthProvider>{children}</AuthProvider>
       </body>
     </html>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Plus, Search, Clock } from "lucide-react";
+import { Plus, Search, Clock, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -14,6 +14,8 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { useAuth } from "@/context/AuthContext";
 import {
   Select,
   SelectContent,
@@ -22,7 +24,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { api, ApiError } from "@/lib/api";
-import type { Appointment, AppointmentStatus, AppointmentCreate } from "@/types/appointment";
+import type {
+  Appointment,
+  AppointmentStatus,
+  AppointmentCreate,
+  AppointmentUpdate,
+} from "@/types/appointment";
 import type { Client } from "@/types/client";
 import type { Service } from "@/types/service";
 import type { Stylist } from "@/types/stylist";
@@ -42,6 +49,39 @@ const STATUS_BADGE: Record<AppointmentStatus, string> = {
   completed:   "bg-slate-100 text-slate-700",
   cancelled:   "bg-red-50 text-red-400",
 };
+
+function normNotes(n: string | null | undefined): string | null {
+  const t = (n ?? "").trim();
+  return t.length > 0 ? t : null;
+}
+
+const STATUS_ACTIONS: Record<
+  AppointmentStatus,
+  { status: AppointmentStatus; label: string; cancelStyle?: boolean }[]
+> = {
+  scheduled: [
+    { status: "in_progress", label: "Marcar en curso" },
+    { status: "cancelled", label: "Cancelar cita", cancelStyle: true },
+  ],
+  in_progress: [
+    { status: "completed", label: "Completar cita" },
+    { status: "cancelled", label: "Cancelar cita", cancelStyle: true },
+  ],
+  completed: [],
+  cancelled: [],
+};
+
+function stylistDisplayName(
+  s: Appointment["stylist"],
+  nameByStylistId: Record<number, string>,
+): string {
+  return (
+    s.user?.full_name ??
+    s.full_name ??
+    nameByStylistId[s.id] ??
+    `Estilista #${s.id}`
+  );
+}
 
 /* ─── Formulario ─── */
 
@@ -66,6 +106,10 @@ const EMPTY_FORM: AppointmentForm = {
 /* ─── Page ─── */
 
 export default function CitasPage() {
+  const { user } = useAuth();
+  const canManageAppointments =
+    user?.role === "admin" || user?.role === "receptionist";
+
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [search, setSearch] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -80,6 +124,28 @@ export default function CitasPage() {
   const [form, setForm] = useState<AppointmentForm>(EMPTY_FORM);
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detail, setDetail] = useState<Appointment | null>(null);
+  const [detailError, setDetailError] = useState<string | null>(null);
+  const [notesDraft, setNotesDraft] = useState("");
+  const [detailActionError, setDetailActionError] = useState<string | null>(null);
+  const [savingNotes, setSavingNotes] = useState(false);
+  const [changingStatus, setChangingStatus] = useState(false);
+  const [stylistNameById, setStylistNameById] = useState<Record<number, string>>({});
+
+  /* ── Nombres de estilistas (el detalle de cita a veces no trae user.full_name) ── */
+  useEffect(() => {
+    api
+      .get<Stylist[]>("/stylists/")
+      .then((list) =>
+        setStylistNameById(
+          Object.fromEntries(list.map((st) => [st.id, st.user.full_name])),
+        ),
+      )
+      .catch(() => null);
+  }, []);
 
   /* ── Cargar citas ── */
   const fetchAppointments = useCallback(async () => {
@@ -101,6 +167,98 @@ export default function CitasPage() {
   }, []);
 
   useEffect(() => { fetchAppointments(); }, [fetchAppointments]);
+
+  async function loadAppointmentDetail(id: number) {
+    setDetailLoading(true);
+    setDetailError(null);
+    setDetail(null);
+    try {
+      const a = await api.get<Appointment>(`/appointments/${id}`);
+      setDetail(a);
+      setNotesDraft(a.notes ?? "");
+    } catch (err) {
+      setDetailError(
+        err instanceof ApiError ? err.message : "No se pudo cargar la cita.",
+      );
+    } finally {
+      setDetailLoading(false);
+    }
+  }
+
+  async function reloadAppointmentInPlace(id: number) {
+    try {
+      const a = await api.get<Appointment>(`/appointments/${id}`);
+      setDetail(a);
+      setNotesDraft(a.notes ?? "");
+      setDetailError(null);
+    } catch (err) {
+      setDetailActionError(
+        err instanceof ApiError ? err.message : "No se pudo actualizar el detalle.",
+      );
+    }
+  }
+
+  function openDetail(id: number) {
+    setDetailActionError(null);
+    setDetailOpen(true);
+    void loadAppointmentDetail(id);
+  }
+
+  function handleDetailOpenChange(v: boolean) {
+    setDetailOpen(v);
+    if (!v) {
+      setDetail(null);
+      setDetailError(null);
+      setDetailActionError(null);
+      setNotesDraft("");
+    }
+  }
+
+  async function refreshDetailAndList(id: number) {
+    await fetchAppointments();
+    if (detailOpen) await reloadAppointmentInPlace(id);
+  }
+
+  async function handleSaveNotes() {
+    if (!detail || !canManageAppointments) return;
+    const next = normNotes(notesDraft);
+    const prev = normNotes(detail.notes);
+    if (next === prev) return;
+    setSavingNotes(true);
+    setDetailActionError(null);
+    try {
+      const body: AppointmentUpdate = { notes: next };
+      await api.patch<Appointment>(`/appointments/${detail.id}`, body);
+      await refreshDetailAndList(detail.id);
+    } catch (err) {
+      setDetailActionError(
+        err instanceof ApiError ? err.message : "Error al guardar las notas.",
+      );
+    } finally {
+      setSavingNotes(false);
+    }
+  }
+
+  async function handleStatusChange(next: AppointmentStatus) {
+    if (!detail || !canManageAppointments) return;
+    setChangingStatus(true);
+    setDetailActionError(null);
+    try {
+      await api.patch<Appointment>(`/appointments/${detail.id}`, {
+        status: next,
+      });
+      await refreshDetailAndList(detail.id);
+    } catch (err) {
+      setDetailActionError(
+        err instanceof ApiError ? err.message : "Error al actualizar el estado.",
+      );
+    } finally {
+      setChangingStatus(false);
+    }
+  }
+
+  const notesDirty =
+    detail != null && normNotes(notesDraft) !== normNotes(detail.notes);
 
   /* ── Cargar datos del formulario cuando se abre el dialog ── */
   useEffect(() => {
@@ -310,6 +468,163 @@ export default function CitasPage() {
         </Dialog>
       </div>
 
+      <Dialog open={detailOpen} onOpenChange={handleDetailOpenChange}>
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Detalle de la cita</DialogTitle>
+            <p className="text-sm text-muted-foreground">
+              Cliente, servicio, horario y estado de la reserva.
+            </p>
+          </DialogHeader>
+
+          {detailLoading && (
+            <p className="text-sm text-muted-foreground py-6">Cargando...</p>
+          )}
+          {detailError && !detailLoading && (
+            <p className="text-sm text-red-600 bg-red-50 border border-red-200 px-3 py-2 rounded-lg">
+              {detailError}
+            </p>
+          )}
+
+          {detail && !detailLoading && (
+            <div className="grid gap-4">
+              {detailActionError && (
+                <p className="text-sm text-red-600 bg-red-50 border border-red-200 px-3 py-2 rounded-lg">
+                  {detailActionError}
+                </p>
+              )}
+
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <Badge variant="secondary" className={STATUS_BADGE[detail.status]}>
+                  {STATUS_LABELS[detail.status]}
+                </Badge>
+                <span className="text-lg font-semibold text-foreground">
+                  $
+                  {Number(detail.total_amount ?? detail.service.price).toLocaleString("es-MX")}
+                </span>
+              </div>
+
+              <div className="rounded-xl border border-border/60 bg-muted/30 p-4 space-y-3 text-sm">
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                    Cliente
+                  </p>
+                  <p className="font-medium text-foreground">{detail.client.full_name}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                    Servicio
+                  </p>
+                  <p className="font-medium text-foreground">{detail.service.name}</p>
+                  <p className="text-muted-foreground text-xs mt-0.5">
+                    {detail.service.category} · {detail.service.duration_minutes} min
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                    Estilista
+                  </p>
+                  <p className="font-medium text-foreground">
+                    {stylistDisplayName(detail.stylist, stylistNameById)}
+                  </p>
+                  {detail.stylist.specialty && (
+                    <p className="text-muted-foreground text-xs mt-0.5">{detail.stylist.specialty}</p>
+                  )}
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                      Inicio
+                    </p>
+                    <p className="text-foreground">
+                      {new Date(detail.start_time).toLocaleString("es-MX", {
+                        weekday: "short",
+                        day: "2-digit",
+                        month: "short",
+                        year: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        hour12: false,
+                      })}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                      Fin
+                    </p>
+                    <p className="text-foreground">
+                      {new Date(detail.end_time).toLocaleString("es-MX", {
+                        weekday: "short",
+                        day: "2-digit",
+                        month: "short",
+                        year: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        hour12: false,
+                      })}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {canManageAppointments && STATUS_ACTIONS[detail.status].length > 0 && (
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">Cambiar estado</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {STATUS_ACTIONS[detail.status].map((a) => (
+                      <Button
+                        key={a.status}
+                        type="button"
+                        size="sm"
+                        variant={a.cancelStyle ? "outline" : "default"}
+                        disabled={changingStatus || savingNotes}
+                        className={
+                          a.cancelStyle
+                            ? "border-red-200 text-red-700 hover:bg-red-50"
+                            : undefined
+                        }
+                        onClick={() => void handleStatusChange(a.status)}
+                      >
+                        {changingStatus ? "…" : a.label}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {!canManageAppointments && (
+                <p className="text-xs text-muted-foreground">
+                  Solo administración o recepción pueden modificar el estado y las notas de la cita.
+                </p>
+              )}
+
+              <div className="grid gap-2">
+                <Label htmlFor="cita-notas">Notas</Label>
+                <Textarea
+                  id="cita-notas"
+                  placeholder="Notas internas sobre la cita..."
+                  value={notesDraft}
+                  onChange={(e) => setNotesDraft(e.target.value)}
+                  readOnly={!canManageAppointments}
+                  className={!canManageAppointments ? "bg-muted/50" : undefined}
+                />
+                {canManageAppointments && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="w-fit"
+                    disabled={!notesDirty || savingNotes || changingStatus}
+                    onClick={() => void handleSaveNotes()}
+                  >
+                    {savingNotes ? "Guardando..." : "Guardar notas"}
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       {/* Buscador */}
       <div className="relative max-w-sm">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -356,18 +671,18 @@ export default function CitasPage() {
                 >
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between gap-4">
-                      <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-4 min-w-0">
                         <div className="flex h-12 w-12 flex-col items-center justify-center rounded-lg bg-primary/10 shrink-0">
                           <Clock className="h-4 w-4 text-primary" />
                           <span className="text-xs font-medium text-primary">
                             {hora}
                           </span>
                         </div>
-                        <div>
+                        <div className="min-w-0">
                           <p className="font-medium text-foreground text-sm">
                             {cita.client.full_name}
                           </p>
-                          <p className="text-sm text-muted-foreground">
+                          <p className="text-sm text-muted-foreground truncate">
                             {cita.service.name}
                           </p>
                           <p className="text-xs text-muted-foreground">
@@ -375,12 +690,24 @@ export default function CitasPage() {
                           </p>
                         </div>
                       </div>
-                      <Badge
-                        variant="secondary"
-                        className={STATUS_BADGE[cita.status]}
-                      >
-                        {STATUS_LABELS[cita.status]}
-                      </Badge>
+                      <div className="flex shrink-0 items-center gap-1.5">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          aria-label="Ver detalle"
+                          onClick={() => openDetail(cita.id)}
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                        <Badge
+                          variant="secondary"
+                          className={STATUS_BADGE[cita.status]}
+                        >
+                          {STATUS_LABELS[cita.status]}
+                        </Badge>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>

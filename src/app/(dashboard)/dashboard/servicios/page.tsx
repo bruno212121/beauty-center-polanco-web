@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Plus, Search, Clock, DollarSign } from "lucide-react";
+import { Plus, Search, Clock, DollarSign, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -14,6 +14,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -23,7 +24,7 @@ import {
 } from "@/components/ui/select";
 import { useAuth } from "@/context/AuthContext";
 import { api, ApiError } from "@/lib/api";
-import type { Service, ServiceCreate } from "@/types/service";
+import type { Service, ServiceCreate, ServiceUpdate } from "@/types/service";
 
 const CATEGORIES = ["Cabello", "Uñas", "Peinados", "Maquillaje", "Corporales", "Faciales"];
 
@@ -48,6 +49,15 @@ const EMPTY_FORM: ServiceForm = {
   name: "", category: "", price: "", duration_minutes: "", description: "",
 };
 
+interface EditServiceForm {
+  name: string;
+  category: string;
+  price: string;
+  duration_minutes: string;
+  description: string;
+  active: boolean;
+}
+
 export default function ServiciosPage() {
   const { user } = useAuth();
 
@@ -61,6 +71,19 @@ export default function ServiciosPage() {
   const [form, setForm] = useState<ServiceForm>(EMPTY_FORM);
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const [editOpen, setEditOpen] = useState(false);
+  const [editing, setEditing] = useState<Service | null>(null);
+  const [editForm, setEditForm] = useState<EditServiceForm>({
+    name: "",
+    category: "",
+    price: "",
+    duration_minutes: "",
+    description: "",
+    active: true,
+  });
+  const [editError, setEditError] = useState<string | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
 
   const fetchServices = useCallback(async () => {
     setIsLoading(true);
@@ -85,6 +108,72 @@ export default function ServiciosPage() {
   function handleDialogChange(v: boolean) {
     setOpen(v);
     if (!v) { setForm(EMPTY_FORM); setFormError(null); }
+  }
+
+  function openEdit(serv: Service) {
+    setEditing(serv);
+    setEditForm({
+      name: serv.name,
+      category: serv.category,
+      price: String(Number(serv.price)),
+      duration_minutes: String(serv.duration_minutes),
+      description: serv.description ?? "",
+      active: serv.active,
+    });
+    setEditError(null);
+    setEditOpen(true);
+  }
+
+  function handleEditDialogChange(v: boolean) {
+    setEditOpen(v);
+    if (!v) {
+      setEditing(null);
+      setEditError(null);
+    }
+  }
+
+  async function handleEditSave() {
+    if (!editing) return;
+    if (!editForm.name.trim()) {
+      setEditError("El nombre es obligatorio.");
+      return;
+    }
+    const priceNum = Number(editForm.price);
+    const durationNum = Number(editForm.duration_minutes);
+    if (!Number.isFinite(priceNum) || priceNum <= 0) {
+      setEditError("El precio debe ser un número mayor que 0.");
+      return;
+    }
+    if (!Number.isInteger(durationNum) || durationNum <= 0) {
+      setEditError("La duración debe ser un entero mayor que 0 (minutos).");
+      return;
+    }
+
+    const patch: ServiceUpdate = {};
+    if (editForm.name.trim() !== editing.name) patch.name = editForm.name.trim();
+    if (editForm.category !== editing.category) patch.category = editForm.category || null;
+    if (durationNum !== editing.duration_minutes) patch.duration_minutes = durationNum;
+    if (priceNum !== Number(editing.price)) patch.price = priceNum;
+    const nextDesc = editForm.description.trim() || null;
+    if (nextDesc !== (editing.description ?? null)) patch.description = nextDesc;
+    if (editForm.active !== editing.active) patch.active = editForm.active;
+
+    if (Object.keys(patch).length === 0) {
+      setEditError("No hay cambios para guardar.");
+      return;
+    }
+
+    setIsEditing(true);
+    setEditError(null);
+    try {
+      await api.patch<Service>(`/services/${editing.id}`, patch);
+      handleEditDialogChange(false);
+      fetchServices();
+    } catch (err) {
+      setEditError(err instanceof ApiError ? err.message : "Error al guardar los cambios.");
+    } finally {
+      setIsEditing(false);
+    }
   }
 
   async function handleSubmit() {
@@ -186,6 +275,96 @@ export default function ServiciosPage() {
         </div>
       </div>
 
+      {/* Editar servicio (solo admin) */}
+      <Dialog open={editOpen} onOpenChange={handleEditDialogChange}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Editar servicio</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4">
+            {editError && (
+              <p className="text-sm text-red-600 bg-red-50 border border-red-200 px-3 py-2 rounded-lg">{editError}</p>
+            )}
+            <div className="grid gap-2">
+              <Label>Nombre <span className="text-red-400">*</span></Label>
+              <Input
+                placeholder="Ej: Corte de cabello"
+                value={editForm.name}
+                onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label>Categoría <span className="text-red-400">*</span></Label>
+              <Select
+                value={editForm.category}
+                onValueChange={(v) => setEditForm((f) => ({ ...f, category: v }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccionar categoría" />
+                </SelectTrigger>
+                <SelectContent>
+                  {CATEGORIES.concat(
+                    editing && !CATEGORIES.includes(editing.category) ? [editing.category] : [],
+                  ).map((cat) => (
+                    <SelectItem key={cat} value={cat}>
+                      {cat}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-2">
+                <Label>Precio <span className="text-red-400">*</span></Label>
+                <Input
+                  type="number"
+                  min={1}
+                  step="0.01"
+                  value={editForm.price}
+                  onChange={(e) => setEditForm((f) => ({ ...f, price: e.target.value }))}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label>Duración (min) <span className="text-red-400">*</span></Label>
+                <Input
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={editForm.duration_minutes}
+                  onChange={(e) => setEditForm((f) => ({ ...f, duration_minutes: e.target.value }))}
+                />
+              </div>
+            </div>
+            <div className="grid gap-2">
+              <Label>Descripción</Label>
+              <Input
+                placeholder="Opcional"
+                value={editForm.description}
+                onChange={(e) => setEditForm((f) => ({ ...f, description: e.target.value }))}
+              />
+            </div>
+            <div className="flex items-center justify-between gap-4 rounded-xl border border-border/60 bg-muted/30 px-4 py-3.5">
+              <div className="min-w-0 space-y-0.5">
+                <p className="text-sm font-medium text-foreground">Servicio activo</p>
+                <p className="text-xs text-muted-foreground">Visible al agendar y en el catálogo</p>
+              </div>
+              <Switch
+                checked={editForm.active}
+                onCheckedChange={(v) => setEditForm((f) => ({ ...f, active: v }))}
+              />
+            </div>
+            <div className="flex gap-2 mt-1">
+              <Button variant="outline" className="flex-1" type="button" onClick={() => handleEditDialogChange(false)}>
+                Cancelar
+              </Button>
+              <Button className="flex-1" type="button" onClick={handleEditSave} disabled={isEditing}>
+                {isEditing ? "Guardando..." : "Guardar cambios"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Buscador */}
       <div className="relative max-w-sm">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -213,12 +392,25 @@ export default function ServiciosPage() {
                         {serv.category}
                       </Badge>
                     </div>
-                    {!serv.active && (
-                      <Badge variant="secondary" className="bg-slate-100 text-slate-500 shrink-0">
-                        Inactivo
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      {user?.role === "admin" && (
+                        <Button variant="ghost" size="icon" className="h-8 w-8" type="button" onClick={() => openEdit(serv)}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                      )}
+                      <Badge
+                        variant="secondary"
+                        className={
+                          serv.active ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"
+                        }
+                      >
+                        {serv.active ? "Activo" : "Inactivo"}
                       </Badge>
-                    )}
+                    </div>
                   </div>
+                  {serv.description && (
+                    <p className="mt-2 line-clamp-2 text-xs text-muted-foreground">{serv.description}</p>
+                  )}
                   <div className="mt-4 flex items-center justify-between">
                     <div className="flex items-center gap-1 text-sm text-muted-foreground">
                       <Clock className="h-4 w-4" />
