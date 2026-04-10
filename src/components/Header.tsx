@@ -51,6 +51,13 @@ export default function Header() {
           >
             Reservar
           </Link>
+          <Link
+            href="/login"
+            className="ml-2 px-4 py-2 text-xs tracking-widest uppercase border border-[var(--color-charcoal)]/30 text-[var(--color-muted)] hover:border-[var(--color-rose)] hover:text-[var(--color-rose)] transition-colors duration-200"
+            style={{ fontFamily: "var(--font-body)" }}
+          >
+            Admin
+          </Link>
         </nav>
 
         {/* Hamburger mobile */}
@@ -98,6 +105,14 @@ export default function Header() {
             style={{ fontFamily: "var(--font-body)" }}
           >
             Reservar
+          </Link>
+          <Link
+            href="/login"
+            onClick={() => setMenuOpen(false)}
+            className="px-5 py-2 text-xs tracking-widest uppercase text-center border border-[var(--color-charcoal)]/30 text-[var(--color-muted)] hover:border-[var(--color-rose)] hover:text-[var(--color-rose)] transition-colors duration-200"
+            style={{ fontFamily: "var(--font-body)" }}
+          >
+            Acceso admin
           </Link>
         </nav>
       )}
