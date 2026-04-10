@@ -112,7 +112,7 @@ export function DialogContent({
       {/* Panel */}
       <div
         className={cn(
-          "relative z-10 w-full bg-card rounded-xl shadow-xl border border-border p-6",
+          "relative z-10 w-full bg-white rounded-xl shadow-xl border border-border p-6",
           className,
         )}
       >
@@ -155,7 +155,10 @@ export function DialogTitle({
   className?: string;
 }) {
   return (
-    <h2 className={cn("text-lg font-semibold text-foreground", className)}>
+    <h2
+      className={cn("text-lg font-semibold text-foreground", className)}
+      style={{ fontFamily: "var(--font-body)", letterSpacing: "normal" }}
+    >
       {children}
     </h2>
   );
